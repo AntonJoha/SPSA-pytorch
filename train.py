@@ -46,7 +46,7 @@ def run_spsa_experiments(
     verbose=True,
 ):
     if lr_options is None:
-        lr_options = [1e-6, 1e-7, 1e-5]
+        lr_options = [1e-7, 1e-6, 1e-5]
     if scaling_options is None:
         scaling_options = [1e-4, 1e-5, 1e-6]
 
@@ -79,7 +79,11 @@ def run_spsa_experiments(
                     with torch.no_grad():
                         for batch in dataloader:
                             batch = _to_device(batch)
-                            batch_loss = spsa_optimizer.step_with_closure(lambda b=batch: model(**b).loss)
+
+                            def loss_closure():
+                                return model(**batch).loss
+
+                            batch_loss = spsa_optimizer.step_with_closure(loss_closure)
                             total_loss += batch_loss.item()
 
                     average_loss = total_loss / len(dataloader)

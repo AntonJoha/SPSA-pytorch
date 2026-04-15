@@ -69,6 +69,12 @@ class SPSA:
         self._unflatten(new_theta)
 
     def step_with_closure(self, loss_closure):
+        """Run one SPSA update using a closure that returns a scalar loss tensor.
+
+        Returns:
+            torch.Tensor: The mean of f(theta + delta) and f(theta - delta), used
+            as a low-cost per-step loss estimate for logging.
+        """
         theta = self._flatten()
         dim = theta.numel()
 
