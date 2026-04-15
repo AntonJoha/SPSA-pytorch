@@ -1,3 +1,4 @@
+import torch
 from datasets import load_dataset
 from torch.utils.data import TensorDataset, DataLoader, Dataset
 
@@ -64,6 +65,7 @@ def get_dataset(name, dataset_type, tokenizer, batch_size):
         dataset = MLMDataset(encoding, tokenizer)
 
     dataloader = DataLoader(dataset, batch_size = batch_size, shuffle=True)
+    return dataloader
 
 
 #################################
