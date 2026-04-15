@@ -89,12 +89,16 @@ class CLMDataset(Dataset):
 
     def __getitem__(self, idx):
         input_ids = self.encodings["input_ids"][idx]
+        attention_mask = self.encodings["attention_mask"][idx]
         # Labels are the same as input_ids; loss is computed on shifted tokens
-        # inside the model (standard CLM convention).
+        # inside the model (standard CLM convention). Padding positions must
+        # be ignored by the loss.
+        labels = input_ids.clone()
+        labels[attention_mask == 0] = -100
         return {
             "input_ids": input_ids,
-            "attention_mask": self.encodings["attention_mask"][idx],
-            "labels": input_ids.clone(),
+            "attention_mask": attention_mask,
+            "labels": labels,
         }
 
 
