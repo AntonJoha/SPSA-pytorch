@@ -68,6 +68,35 @@ class SPSA:
         new_theta = theta - self.lr * grad_est
         self._unflatten(new_theta)
 
+    def step_with_closure(self, loss_closure):
+        theta = self._flatten()
+        dim = theta.numel()
+
+        # SPSA direction
+        delta_vec = torch.randint(0, 2, (dim,), device=device).float()
+        delta_vec = 2 * delta_vec - 1
+
+        theta_plus = theta + self.delta * delta_vec
+        theta_minus = theta - self.delta * delta_vec
+
+        # f(theta+)
+        self._unflatten(theta_plus)
+        loss_plus = loss_closure()
+
+        # f(theta-)
+        self._unflatten(theta_minus)
+        loss_minus = loss_closure()
+
+        # restore original
+        self._unflatten(theta)
+
+        # gradient estimate
+        grad_est = (loss_plus - loss_minus) / (2 * self.delta) * delta_vec + self.noise_factor * delta_vec
+
+        # update
+        new_theta = theta - self.lr * grad_est
+        self._unflatten(new_theta)
+
 #################################
 ## Functions
 #################################
