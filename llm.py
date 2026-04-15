@@ -91,10 +91,17 @@ def _qlora(base_model_name="gpt2", lora_r=16, lora_alpha=32, lora_dropout=0.05):
             quantization_config=quant_config,
             device_map="auto",
         )
+    except ImportError as e:
+        raise ImportError(
+            "QLoRA model loading failed due to a missing optional dependency. "
+            "Ensure `accelerate` is installed for `device_map=\"auto\"` and "
+            "`bitsandbytes` is installed for 4-bit quantization."
+        ) from e
     except Exception as e:
         raise RuntimeError(
             "QLoRA model loading failed. Install bitsandbytes-compatible dependencies "
-            "and ensure your environment supports 4-bit quantization."
+            "and ensure your environment supports 4-bit quantization. "
+            f"Original error: {e}"
         ) from e
 
     model = prepare_model_for_kbit_training(model)
