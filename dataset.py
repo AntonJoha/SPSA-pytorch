@@ -5,22 +5,6 @@ from torch.utils.data import TensorDataset, DataLoader, Dataset
 #################################
 ## CONSTANTS
 #################################
-# Supported dataset names
-DATASETS = [
-    "imdb",
-    "ag_news",
-    "yelp_review_full",
-    "sst2",
-    "wikitext",
-]
-
-# Supported task types
-DATASET_TYPE = [
-    "MLM",           # Masked Language Modelling (e.g. BERT pre-training)
-    "classification", # Supervised sequence classification
-    "CLM",           # Causal Language Modelling (e.g. GPT pre-training)
-]
-
 # Per-dataset configuration: (hf_name, hf_config, split, text_field, label_field)
 # label_field is None for unsupervised (MLM / CLM) tasks.
 _DATASET_CONFIG = {
@@ -30,6 +14,16 @@ _DATASET_CONFIG = {
     "sst2":             ("glue",              "sst2",                "train", "sentence", "label"),
     "wikitext":         ("wikitext",          "wikitext-2-raw-v1",   "train", "text",     None),
 }
+
+# Derived from _DATASET_CONFIG to keep a single source of truth.
+DATASETS = list(_DATASET_CONFIG.keys())
+
+# Supported task types
+DATASET_TYPE = [
+    "MLM",           # Masked Language Modelling (e.g. BERT pre-training)
+    "classification", # Supervised sequence classification
+    "CLM",           # Causal Language Modelling (e.g. GPT pre-training)
+]
 
 #################################
 ## Class definitions
@@ -46,16 +40,21 @@ class MLMDataset(Dataset):
 
     def __getitem__(self, idx):
         input_ids = self.encodings["input_ids"][idx].clone()
+        attention_mask = self.encodings["attention_mask"][idx]
         labels = input_ids.clone()
 
-        # Mask tokens
+        # Mask tokens: only apply masking to non-padding positions
         probability_matrix = torch.rand(input_ids.shape)
-        mask = probability_matrix < self.mlm_prob
+        mask = (probability_matrix < self.mlm_prob) & (attention_mask == 1)
         input_ids[mask] = self.tokenizer.mask_token_id
+
+        # Set labels to -100 for positions that are not masked (loss only on
+        # masked tokens) and also for padding positions.
+        labels[~mask] = -100
 
         return {
             "input_ids": input_ids,
-            "attention_mask": self.encodings["attention_mask"][idx],
+            "attention_mask": attention_mask,
             "labels": labels,
         }
 
