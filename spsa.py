@@ -96,6 +96,7 @@ class SPSA:
         # update
         new_theta = theta - self.lr * grad_est
         self._unflatten(new_theta)
+        return 0.5 * (loss_plus + loss_minus)
 
 #################################
 ## Functions

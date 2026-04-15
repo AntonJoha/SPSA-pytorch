@@ -62,8 +62,7 @@ def run_spsa_experiments(
     except (FileNotFoundError, json.JSONDecodeError):
         data = []
 
-    first = 0
-    for _ in range(repeats):
+    for repeat_idx in range(repeats):
         for lr in lr_options:
             for scale in scaling_options:
                 if verbose:
@@ -80,14 +79,14 @@ def run_spsa_experiments(
                     with torch.no_grad():
                         for batch in dataloader:
                             batch = _to_device(batch)
-                            spsa_optimizer.step_with_closure(lambda b=batch: model(**b).loss)
-                            total_loss += model(**batch).loss.item()
+                            batch_loss = spsa_optimizer.step_with_closure(lambda b=batch: model(**b).loss)
+                            total_loss += batch_loss.item()
 
                     average_loss = total_loss / len(dataloader)
                     to_save["loss"].append(average_loss)
 
                     if verbose and epoch % 2 == 0:
-                        print(first, f"Epoch {epoch + 1}, Loss: {average_loss:.4f}")
+                        print(f"Repeat {repeat_idx + 1}, Epoch {epoch + 1}, Loss: {average_loss:.4f}")
 
                     if math.isnan(total_loss) or average_loss > 20:
                         break
