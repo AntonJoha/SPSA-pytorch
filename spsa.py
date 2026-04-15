@@ -1,100 +1,107 @@
 import torch
 import copy
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 
+#################################
+## CONSTANTS
+#################################
+
+
+#################################
+## Class definitions
+#################################
 
 
 class SPSA:
-
-    def __init__(self, model, loss_fn, lr=0.01, delta=0.01):
+    def __init__(self, model, loss_fn, lr, delta, noise_factor=0):
         self.model = model
         self.loss_fn = loss_fn
         self.lr = lr
         self.delta = delta
-        self.noise_scale = 0.01
+        self.noise_factor = noise_factor
 
-        self.parameters = list(self.model.parameters())
-        print("Parameters:", self.parameters[0].shape)
-        print("Parameters true", self.model.parameters())
-        self.dimensions = self.get_dimensions()
-        print(self.dimensions)
-        
-        self._init_randomizer()
+        self.params = [p for p in model.parameters() if p.requires_grad]
 
+    def _flatten(self):
+        return torch.cat([p.data.view(-1) for p in self.params])
 
-    def _init_randomizer(self):
-        self.randomizer = []
-        for param in self.parameters:
-            self.randomizer.append(torch.distributions.bernoulli.Bernoulli(param.data.new_ones(param.shape) * 0.5))
-
-    def _randomize_parameters(self):
-        return [r.sample()-0.5 for r in self.randomizer]
-
-
-    def get_dimensions(self):
-        return sum(p.numel() for p in self.parameters if p.requires_grad)
-
-    def forward(self, x):
-        return self.model(x)
-
-    def _perturb_parameters(self, direction, magnitude):
-        for d, param in zip(direction, self.model.parameters()):
-            param.data += d * magnitude
-
+    def _unflatten(self, flat):
+        idx = 0
+        for p in self.params:
+            n = p.numel()
+            p.data.copy_(flat[idx:idx+n].view_as(p))
+            idx += n
 
     def step(self, x, y):
-        x = x.clone().detach().requires_grad_(True)
-        y = y.clone().detach()
+        x, y = x.to(device), y.to(device)
 
-        # Random perturbation
-        perturbation = self._randomize_parameters()
+        theta = self._flatten()
+        dim = theta.numel()
 
-        
-        self._perturb_parameters(perturbation, self.delta)
-        
-        left = self.loss_fn(self.forward(x), y)
+        # SPSA direction
+        delta_vec = torch.randint(0, 2, (dim,), device=device).float()
+        delta_vec = 2 * delta_vec - 1
 
-        self._perturb_parameters(perturbation, -2 * self.delta)
-        right = self.loss_fn(self.forward(x), y)
-        self._perturb_parameters(perturbation, self.delta)
+        theta_plus = theta + self.delta * delta_vec
+        theta_minus = theta - self.delta * delta_vec
 
-        
-        # Compute gradient approximation
-        gradient = [(left - right) / (2 * self.delta*p) + p*self.noise_scale for p in perturbation]
-        # Update parameters
-    
-        self._perturb_parameters(gradient, -self.lr)
+        # f(theta+)
+        self._unflatten(theta_plus)
+        loss_plus = self.loss_fn(self.model(x), y)
+
+        # f(theta-)
+        self._unflatten(theta_minus)
+        loss_minus = self.loss_fn(self.model(x), y)
+
+        # restore original
+        self._unflatten(theta)
+
+        # gradient estimate
+        grad_est = (loss_plus - loss_minus) / (2 * self.delta) * delta_vec + self.noise_factor*delta_vec
+
+        # update
+        new_theta = theta - self.lr * grad_est
+        self._unflatten(new_theta)
+
+#################################
+## Functions
+#################################
 
 
 
 
-class Model(torch.nn.Module):
-    def __init__(self):
-        super(Model, self).__init__()
-        self.fc = torch.nn.Linear(10, 20)
-        self.relu = torch.nn.ReLU()
-        self.fc2 = torch.nn.Linear(20, 1)
-
-    def forward(self, x):
-        x = self.fc(x)
-        x = self.relu(x)
-        x = self.fc2(x)
-        return x
-
+#################################
+## Test function
+#################################
 
 if __name__ == "__main__":
+    print("-----------------------------------")
+    print("FITTING TO RANDOM NOISE")
+    print("-----------------------------------")
+
+    class Model(torch.nn.Module):
+        def __init__(self):
+            super(Model, self).__init__()
+            self.fc = torch.nn.Linear(10, 20)
+            self.relu = torch.nn.ReLU()
+            self.fc2 = torch.nn.Linear(20, 1)
+    
+        def forward(self, x):
+            x = self.fc(x)
+            x = self.relu(x)
+            x = self.fc2(x)
+            return x
     model = Model()
     loss_fn = torch.nn.MSELoss()
-    spsa_optimizer = SPSA(model, loss_fn, lr=0.01, delta=0.01)
+    spsa_optimizer = SPSA(model, loss_fn, lr=0.01, delta=0.01, noise_factor=0.1)
 
 
     x = torch.randn(5, 10)
     y = torch.randn(5, 1)
 
+    first = loss_fn(model(x), y).item()
     for _ in range(100):
         spsa_optimizer.step(x, y)
-        #print("Updated parameters:", [p.data for p in model.parameters()])
-        print("Loss:", loss_fn(model(x), y).item())
-
-
-
+    last = loss_fn(model(x), y).item()
+    print("First: ", first, " Last", last, " diff: ", first-last)
