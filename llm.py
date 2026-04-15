@@ -1,3 +1,5 @@
+import warnings
+
 from transformers import (
     AutoModelForCausalLM,
     AutoModelForMaskedLM,
@@ -41,10 +43,14 @@ def _masked_lm(name):
     }
 
 
-def _causal_lm(name):
-    tokenizer = AutoTokenizer.from_pretrained(name)
+def _ensure_pad_token(tokenizer):
     if tokenizer.pad_token is None and tokenizer.eos_token is not None:
         tokenizer.pad_token = tokenizer.eos_token
+    return tokenizer
+
+
+def _causal_lm(name):
+    tokenizer = _ensure_pad_token(AutoTokenizer.from_pretrained(name))
     model = AutoModelForCausalLM.from_pretrained(name)
     return {
         "tokenizer": tokenizer,
@@ -55,6 +61,9 @@ def _causal_lm(name):
 
 
 def _qlora(base_model_name="gpt2", lora_r=16, lora_alpha=32, lora_dropout=0.05):
+    """
+    Load a 4-bit quantized causal LM and wrap it with LoRA adapters.
+    """
     try:
         from peft import (
             LoraConfig,
@@ -63,13 +72,13 @@ def _qlora(base_model_name="gpt2", lora_r=16, lora_alpha=32, lora_dropout=0.05):
         )
     except ImportError as e:
         raise ImportError(
-            "QLoRA support requires `peft` to be installed."
+            "QLoRA support requires `peft` to be installed. "
+            "Install it with: pip install peft"
         ) from e
 
-    tokenizer = AutoTokenizer.from_pretrained(base_model_name)
-    if tokenizer.pad_token is None and tokenizer.eos_token is not None:
-        tokenizer.pad_token = tokenizer.eos_token
+    tokenizer = _ensure_pad_token(AutoTokenizer.from_pretrained(base_model_name))
 
+    # QLoRA 4-bit setup: NF4 + double quantization for memory-efficient training.
     quant_config = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_quant_type="nf4",
@@ -106,8 +115,18 @@ def _qlora(base_model_name="gpt2", lora_r=16, lora_alpha=32, lora_dropout=0.05):
     }
 
 
-def burt_base_uncased():
+def bert_base_uncased():
     return _masked_lm("bert-base-uncased")
+
+
+def burt_base_uncased():
+    """Backward-compatible alias for previous misspelled public API."""
+    warnings.warn(
+        "`burt_base_uncased` is deprecated; use `bert_base_uncased` instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return bert_base_uncased()
 
 
 def get_model(name, **kwargs):
@@ -116,10 +135,20 @@ def get_model(name, **kwargs):
     if name == "gpt2":
         return _causal_lm(name)
     if name in ("qlora", "qlora-gpt2"):
-        base_model_name = kwargs.pop("base_model_name", "gpt2")
-        return _qlora(base_model_name=base_model_name, **kwargs)
+        base_model_name = kwargs.get("base_model_name", "gpt2")
+        allowed_qlora_kwargs = {"lora_r", "lora_alpha", "lora_dropout"}
+        unknown_kwargs = set(kwargs) - allowed_qlora_kwargs - {"base_model_name"}
+        if unknown_kwargs:
+            raise TypeError(
+                f"Unknown QLoRA kwargs: {', '.join(sorted(unknown_kwargs))}. "
+                "Allowed kwargs: base_model_name, lora_r, lora_alpha, lora_dropout."
+            )
+        qlora_kwargs = {k: v for k, v in kwargs.items() if k in allowed_qlora_kwargs}
+        return _qlora(base_model_name=base_model_name, **qlora_kwargs)
     raise ValueError(
-        f"Unknown model '{name}'. Available models: {', '.join(AVAILABLE_MODELS)}"
+        f"Unknown model '{name}'. Available models: {', '.join(AVAILABLE_MODELS)}. "
+        "Note: QLoRA entries accept optional kwargs such as "
+        "base_model_name, lora_r, lora_alpha, and lora_dropout."
     )
 
 
