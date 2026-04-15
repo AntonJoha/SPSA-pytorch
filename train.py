@@ -16,6 +16,7 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 DEFAULT_RESULTS_DIR = "results"
 DEFAULT_RESULTS_FILE = "spsa_full.json"
+MAX_STABLE_LOSS = 20.0
 
 #################################
 ## Class definitions
@@ -92,7 +93,7 @@ def run_spsa_experiments(
                     if verbose and epoch % 2 == 0:
                         print(f"Repeat {repeat_idx + 1}, Epoch {epoch + 1}, Loss: {average_loss:.4f}")
 
-                    if math.isnan(total_loss) or average_loss > 20:
+                    if math.isnan(total_loss) or average_loss > MAX_STABLE_LOSS:
                         break
 
                 data.append(to_save)

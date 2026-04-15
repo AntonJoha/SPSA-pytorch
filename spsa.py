@@ -97,6 +97,8 @@ class SPSA:
         self._unflatten(theta)
 
         # gradient estimate
+        # Optional isotropic noise can be added to the update direction to
+        # encourage exploration and reduce deterministic update bias.
         grad_est = (loss_plus - loss_minus) / (2 * self.delta) * delta_vec + self.noise_factor * delta_vec
 
         # update
