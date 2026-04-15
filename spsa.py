@@ -34,7 +34,11 @@ class SPSA:
             idx += n
 
     def step(self, x, y):
-        x, y = x.to(device), y.to(device)
+        if isinstance(x, dict):
+            x = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in x.items()}
+        else:
+            x = x.to(device)
+        y = y.to(device)
 
         theta = self._flatten()
         dim = theta.numel()
