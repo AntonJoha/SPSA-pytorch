@@ -38,6 +38,7 @@ def run_spsa_experiments(
     lr_options=None,
     scaling_options=None,
     noise_factor=0.0,
+    optimizer_name="spsa",
     results_dir=DEFAULT_RESULTS_DIR,
     results_filename=DEFAULT_RESULTS_FILE,
     verbose=True,
@@ -46,6 +47,9 @@ def run_spsa_experiments(
         lr_options = [1e-3, 3e-4, 1e-4]
     if scaling_options is None:
         scaling_options = [1e-3, 3e-4, 1e-4]
+    optimizer_name = optimizer_name.lower()
+    if optimizer_name not in {"spsa", "sgd"}:
+        raise ValueError("optimizer_name must be either 'spsa' or 'sgd'")
 
     model_dict = llm.get_model(model_name)
     dataloader = dataset.get_dataset(dataset_name, dataset_type, model_dict["tokenizer"], batch_size, truncated_dataset=300)
@@ -117,20 +121,33 @@ def run_spsa_experiments(
                     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
                     total = sum(p.numel() for p in model.parameters())
                     print(f"Trainable params: {trainable}/{total}")
+                    print(f"Optimizer: {optimizer_name.upper()}")
 
-                spsa_optimizer = SPSA(model, loss_fn=None, lr=lr, delta=scale, noise_factor=noise_factor)
+                spsa_optimizer = None
+                sgd_optimizer = None
+                if optimizer_name == "spsa":
+                    spsa_optimizer = SPSA(model, loss_fn=None, lr=lr, delta=scale, noise_factor=noise_factor)
+                else:
+                    sgd_optimizer = torch.optim.SGD(
+                        [p for p in model.parameters() if p.requires_grad],
+                        lr=lr,
+                    )
 
-                to_save = {"lr": lr, "scaling": scale, "loss": []}
+                to_save = {"optimizer": optimizer_name, "lr": lr, "scaling": scale, "loss": [], "did_train": False}
                 for epoch in range(epochs):
                     total_loss = 0.0
-                    with torch.no_grad():
-                        for batch in dataloader:
-                            batch = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
+                    for batch in dataloader:
+                        batch = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
 
-                            
-
-                            batch_loss = spsa_optimizer.step(batch)
-                            total_loss += batch_loss.item()
+                        if optimizer_name == "spsa":
+                            with torch.no_grad():
+                                batch_loss = spsa_optimizer.step(batch)
+                        else:
+                            sgd_optimizer.zero_grad(set_to_none=True)
+                            batch_loss = model(**batch).loss
+                            batch_loss.backward()
+                            sgd_optimizer.step()
+                        total_loss += batch_loss.item()
 
                     average_loss = total_loss / len(dataloader)
                     to_save["loss"].append(average_loss)
@@ -141,6 +158,8 @@ def run_spsa_experiments(
                     if math.isnan(average_loss) or average_loss > MAX_STABLE_LOSS:
                         break
 
+                if len(to_save["loss"]) >= 2:
+                    to_save["did_train"] = min(to_save["loss"][1:]) < to_save["loss"][0]
                 data.append(to_save)
                 with open(results_path, "w", encoding="utf-8") as f:
                     json.dump(data, f, indent=2)
