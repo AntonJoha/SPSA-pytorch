@@ -27,11 +27,6 @@ MAX_STABLE_LOSS = 20.0
 ## Functions
 #################################
 
-
-def _to_device(batch):
-    return {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
-
-
 def run_spsa_experiments(
     model_name="distilbert-base-uncased",
     dataset_name="ag_news",
@@ -79,7 +74,7 @@ def run_spsa_experiments(
                     total_loss = 0.0
                     with torch.no_grad():
                         for batch in dataloader:
-                            batch = _to_device(batch)
+                            batch = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
 
                             def loss_closure():
                                 return model(**batch).loss
