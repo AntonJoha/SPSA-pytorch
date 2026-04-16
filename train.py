@@ -9,7 +9,7 @@ import llm
 from spsa import SPSA
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-
+print(device)
 #################################
 ## CONSTANTS
 #################################
@@ -28,10 +28,10 @@ MAX_STABLE_LOSS = 20.0
 #################################
 
 def run_spsa_experiments(
-    model_name="distilbert-base-uncased",
-    dataset_name="ag_news",
+    model_name="bert-base-uncased",
+    dataset_name="imdb",
     dataset_type="MLM",
-    batch_size=3,
+    batch_size=10,
     epochs=50,
     repeats=10,
     lr_options=None,
@@ -42,12 +42,12 @@ def run_spsa_experiments(
     verbose=True,
 ):
     if lr_options is None:
-        lr_options = [1e-7, 1e-6, 1e-5]
+        lr_options = [1e-1,1e-2,1e-3,1e-4, 1e-5, 1e-6,1e-7]
     if scaling_options is None:
-        scaling_options = [1e-4, 1e-5, 1e-6]
+        scaling_options = [1e-1,1e-2,1e-3,1e-4, 1e-5, 1e-6,1e-7]
 
     model_dict = llm.get_model(model_name)
-    dataloader = dataset.get_dataset(dataset_name, dataset_type, model_dict["tokenizer"], batch_size)
+    dataloader = dataset.get_dataset(dataset_name, dataset_type, model_dict["tokenizer"], batch_size, truncated_dataset=300)
 
     os.makedirs(results_dir, exist_ok=True)
     results_path = os.path.join(results_dir, results_filename)
@@ -66,6 +66,7 @@ def run_spsa_experiments(
                     print("LR", lr, "Scale", scale)
 
                 model = llm.get_model(model_name)["model"].to(device)
+                print("HERE?")
                 model.eval()
                 spsa_optimizer = SPSA(model, loss_fn=None, lr=lr, delta=scale, noise_factor=noise_factor)
 
@@ -76,10 +77,9 @@ def run_spsa_experiments(
                         for batch in dataloader:
                             batch = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
 
-                            def loss_closure():
-                                return model(**batch).loss
+                            
 
-                            batch_loss = spsa_optimizer.step_with_closure(loss_closure)
+                            batch_loss = spsa_optimizer.step(batch)
                             total_loss += batch_loss.item()
 
                     average_loss = total_loss / len(dataloader)

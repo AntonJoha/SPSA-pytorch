@@ -106,7 +106,7 @@ class CLMDataset(Dataset):
 #################################
 
 
-def get_dataset(name, dataset_type, tokenizer, batch_size):
+def get_dataset(name, dataset_type, tokenizer, batch_size, truncated_dataset=False):
     """Load *name* dataset, tokenize it, and return a DataLoader.
 
     Parameters
@@ -132,16 +132,11 @@ def get_dataset(name, dataset_type, tokenizer, batch_size):
     else:
         raw = load_dataset(hf_name)[split]
 
-    # Filter out empty strings (common in wikitext) in a single pass so that
-    # texts and labels remain aligned.
-    if label_field is not None:
-        filtered = [(row[text_field], row[label_field]) for row in raw if row[text_field] and row[text_field].strip()]
-        texts, labels_raw = zip(*filtered) if filtered else ([], [])
-        texts = list(texts)
-    else:
-        texts = [t for t in raw[text_field] if t and t.strip()]
-        labels_raw = []
 
+    texts = [t for t in raw[text_field] if t and t.strip()]
+    if truncated_dataset is not False:
+        texts = texts[:truncated_dataset]
+    
     encoding = tokenizer(
         texts,
         truncation=True,
@@ -160,6 +155,12 @@ def get_dataset(name, dataset_type, tokenizer, batch_size):
                 f"Dataset '{name}' does not provide labels; "
                 "use 'MLM' or 'CLM' as dataset_type."
             )
+
+
+        filtered = [(row[text_field], row[label_field]) for row in raw if row[text_field] and row[text_field].strip()]
+        texts, labels_raw = zip(*filtered) if filtered else ([], [])
+        texts = list(texts)
+
         labels = torch.tensor(list(labels_raw), dtype=torch.long)
         dataset = ClassificationDataset(encoding, labels)
 

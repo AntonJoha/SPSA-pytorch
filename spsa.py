@@ -33,30 +33,25 @@ class SPSA:
             p.data.copy_(flat[idx:idx+n].view_as(p))
             idx += n
 
-    def step(self, x, y):
-        if isinstance(x, dict):
-            x = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in x.items()}
-        else:
-            x = x.to(device)
-        y = y.to(device)
+    def step(self, batch):
+        
 
         theta = self._flatten()
         dim = theta.numel()
 
         # SPSA direction
         delta_vec = torch.randint(0, 2, (dim,), device=theta.device).float()
-        delta_vec = 2 * delta_vec - 1
 
         theta_plus = theta + self.delta * delta_vec
         theta_minus = theta - self.delta * delta_vec
 
         # f(theta+)
         self._unflatten(theta_plus)
-        loss_plus = self.loss_fn(self.model(x), y)
+        loss_plus = self.model(**batch).loss
 
         # f(theta-)
         self._unflatten(theta_minus)
-        loss_minus = self.loss_fn(self.model(x), y)
+        loss_minus = self.model(**batch).loss
 
         # restore original
         self._unflatten(theta)
@@ -67,6 +62,7 @@ class SPSA:
         # update
         new_theta = theta - self.lr * grad_est
         self._unflatten(new_theta)
+        return self.model(**batch).loss
 
     def step_with_closure(self, loss_closure):
         """Run one SPSA update using a closure that returns a scalar loss tensor.
@@ -80,7 +76,7 @@ class SPSA:
 
         # SPSA direction
         delta_vec = torch.randint(0, 2, (dim,), device=theta.device).float()
-        delta_vec = 2 * delta_vec - 1
+        delta_vec = delta_vec - 1
 
         theta_plus = theta + self.delta * delta_vec
         theta_minus = theta - self.delta * delta_vec
@@ -104,7 +100,7 @@ class SPSA:
         # update
         new_theta = theta - self.lr * grad_est
         self._unflatten(new_theta)
-        return 0.5 * (loss_plus + loss_minus)
+        return loss_closure()
 
 #################################
 ## Functions
