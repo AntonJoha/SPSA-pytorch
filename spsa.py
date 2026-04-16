@@ -27,7 +27,7 @@ class SPSA:
         # and—critically—multiplies the total number of perturbed dimensions,
         # which drives the SPSA signal-to-noise ratio to near zero for large
         # models.  Keep only the first occurrence of each unique tensor.
-        seen_ids: set = set()
+        seen_ids: set[int] = set()
         self.params = []
         for p in model.parameters():
             if p.requires_grad and id(p) not in seen_ids:

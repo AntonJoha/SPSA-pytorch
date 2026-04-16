@@ -70,16 +70,32 @@ def run_spsa_experiments(
                 model.train()
 
                 # Freeze every parameter then unfreeze only the last transformer
-                # block and the MLM prediction head.  This reduces the number of
-                # optimised dimensions from ~110 M (full BERT-base) to ~7 M,
+                # block and the MLM/classification head.  This reduces the number
+                # of optimised dimensions from ~110 M (full BERT-base) to ~7 M,
                 # which is ~1000x smaller.  SPSA's per-step signal-to-noise
                 # ratio scales as 1/sqrt(dim), so fewer dimensions means a
                 # dramatically better SNR and practical convergence.
                 for p in model.parameters():
                     p.requires_grad_(False)
+
+                # Dynamically find the highest-indexed transformer layer so that
+                # the code works across different encoder depths (e.g. 12-layer
+                # BERT-base, 6-layer DistilBERT) without hard-coding an index.
+                import re as _re
+                last_layer_idx = max(
+                    (int(m.group(1))
+                     for name, _ in model.named_modules()
+                     for m in [_re.search(r'\.layer\.(\d+)$', name)]
+                     if m),
+                    default=None,
+                )
                 for module_name, module in model.named_modules():
-                    # last encoder layer (index 11 for bert-base, 5 for distilbert)
-                    if module_name.endswith((".layer.11", ".layer.5", "cls", ".classifier")):
+                    is_last_encoder = (
+                        last_layer_idx is not None
+                        and module_name.endswith(f".layer.{last_layer_idx}")
+                    )
+                    is_head = module_name.endswith(("cls", ".classifier"))
+                    if is_last_encoder or is_head:
                         for p in module.parameters():
                             p.requires_grad_(True)
 
