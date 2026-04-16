@@ -1,6 +1,7 @@
 import json
 import math
 import os
+import re
 
 import torch
 
@@ -33,7 +34,7 @@ def run_spsa_experiments(
     dataset_type="MLM",
     batch_size=10,
     epochs=50,
-    repeats=10,
+    repeats=1,
     lr_options=None,
     scaling_options=None,
     noise_factor=0.0,
@@ -42,9 +43,9 @@ def run_spsa_experiments(
     verbose=True,
 ):
     if lr_options is None:
-        lr_options = [1e-1,1e-2,1e-3,1e-4, 1e-5, 1e-6,1e-7]
+        lr_options = [1e-3, 3e-4, 1e-4]
     if scaling_options is None:
-        scaling_options = [1e-1,1e-2,1e-3,1e-4, 1e-5, 1e-6,1e-7]
+        scaling_options = [1e-3, 3e-4, 1e-4]
 
     model_dict = llm.get_model(model_name)
     dataloader = dataset.get_dataset(dataset_name, dataset_type, model_dict["tokenizer"], batch_size, truncated_dataset=300)
@@ -66,38 +67,56 @@ def run_spsa_experiments(
                     print("LR", lr, "Scale", scale)
 
                 model = llm.get_model(model_name)["model"].to(device)
-                print("HERE?")
                 model.train()
 
-                # Freeze every parameter then unfreeze only the last transformer
-                # block and the MLM/classification head.  This reduces the number
-                # of optimised dimensions from ~110 M (full BERT-base) to ~7 M,
-                # which is ~1000x smaller.  SPSA's per-step signal-to-noise
-                # ratio scales as 1/sqrt(dim), so fewer dimensions means a
-                # dramatically better SNR and practical convergence.
+                # Freeze every parameter first.
                 for p in model.parameters():
                     p.requires_grad_(False)
 
-                # Dynamically find the highest-indexed transformer layer so that
-                # the code works across different encoder depths (e.g. 12-layer
-                # BERT-base, 6-layer DistilBERT) without hard-coding an index.
-                import re as _re
-                last_layer_idx = max(
-                    (int(m.group(1))
-                     for name, _ in model.named_modules()
-                     for m in [_re.search(r'\.layer\.(\d+)$', name)]
-                     if m),
-                    default=None,
-                )
-                for module_name, module in model.named_modules():
-                    is_last_encoder = (
-                        last_layer_idx is not None
-                        and module_name.endswith(f".layer.{last_layer_idx}")
-                    )
-                    is_head = module_name.endswith(("cls", ".classifier"))
-                    if is_last_encoder or is_head:
-                        for p in module.parameters():
-                            p.requires_grad_(True)
+                # Unfreeze only a tiny, SPSA-feasible subset:
+                # - last transformer block
+                # - small MLM head transforms / biases
+                # Keep tied output projection weights frozen (e.g. decoder.weight),
+                # otherwise trainable dimensionality explodes and SPSA diverges.
+                all_names = [name for name, _ in model.named_parameters()]
+                layer_idxs = []
+                for name in all_names:
+                    m = re.search(r"(?:encoder|transformer)\.layer\.(\d+)\.", name)
+                    if m:
+                        layer_idxs.append(int(m.group(1)))
+                last_layer_idx = max(layer_idxs) if layer_idxs else None
+
+                for name, p in model.named_parameters():
+                    if last_layer_idx is not None and re.search(
+                        rf"(?:encoder|transformer)\.layer\.{last_layer_idx}\.", name
+                    ):
+                        p.requires_grad_(True)
+                        continue
+
+                    # BERT MLM small head (exclude decoder.weight)
+                    if name.startswith("cls.predictions.transform."):
+                        p.requires_grad_(True)
+                        continue
+                    if name in {"cls.predictions.bias", "cls.predictions.decoder.bias"}:
+                        p.requires_grad_(True)
+                        continue
+
+                    # DistilBERT MLM small head (exclude vocab_projector.weight)
+                    if name.startswith(("vocab_transform.", "vocab_layer_norm.")):
+                        p.requires_grad_(True)
+                        continue
+                    if name in {"vocab_projector.bias"}:
+                        p.requires_grad_(True)
+                        continue
+
+                    # Classification heads (if used)
+                    if name.endswith(("classifier.weight", "classifier.bias")):
+                        p.requires_grad_(True)
+
+                if verbose:
+                    trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+                    total = sum(p.numel() for p in model.parameters())
+                    print(f"Trainable params: {trainable}/{total}")
 
                 spsa_optimizer = SPSA(model, loss_fn=None, lr=lr, delta=scale, noise_factor=noise_factor)
 
