@@ -133,7 +133,14 @@ def run_spsa_experiments(
                         lr=lr,
                     )
 
-                to_save = {"optimizer": optimizer_name, "lr": lr, "scaling": scale, "loss": [], "did_train": False}
+                to_save = {
+                    "optimizer": optimizer_name,
+                    "lr": lr,
+                    "scaling": scale,
+                    "loss": [],
+                    "training_succeeded": False,
+                    "did_train": False,
+                }
                 for epoch in range(epochs):
                     total_loss = 0.0
                     for batch in dataloader:
@@ -158,8 +165,14 @@ def run_spsa_experiments(
                     if math.isnan(average_loss) or average_loss > MAX_STABLE_LOSS:
                         break
 
-                if len(to_save["loss"]) >= 2:
-                    to_save["did_train"] = min(to_save["loss"][1:]) < to_save["loss"][0]
+                if len(to_save["loss"]) == 1:
+                    to_save["training_succeeded"] = math.isfinite(to_save["loss"][0]) and to_save["loss"][0] <= MAX_STABLE_LOSS
+                elif len(to_save["loss"]) >= 2:
+                    to_save["training_succeeded"] = (
+                        math.isfinite(to_save["loss"][-1])
+                        and to_save["loss"][-1] < to_save["loss"][0]
+                    )
+                to_save["did_train"] = to_save["training_succeeded"]
                 data.append(to_save)
                 with open(results_path, "w", encoding="utf-8") as f:
                     json.dump(data, f, indent=2)
