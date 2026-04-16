@@ -139,7 +139,6 @@ def run_spsa_experiments(
                     "scaling": scale,
                     "loss": [],
                     "training_succeeded": False,
-                    "did_train": False,
                 }
                 for epoch in range(epochs):
                     total_loss = 0.0
@@ -172,7 +171,6 @@ def run_spsa_experiments(
                         math.isfinite(to_save["loss"][-1])
                         and to_save["loss"][-1] < to_save["loss"][0]
                     )
-                to_save["did_train"] = to_save["training_succeeded"]
                 data.append(to_save)
                 with open(results_path, "w", encoding="utf-8") as f:
                     json.dump(data, f, indent=2)
