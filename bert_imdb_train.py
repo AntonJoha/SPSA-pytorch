@@ -1,4 +1,5 @@
 import torch
+import re
 
 import llm
 from imdb_dataset import get_imdb_mlm_dataloader
@@ -12,9 +13,18 @@ def _freeze_for_spsa_bert_mlm(model):
     for p in model.parameters():
         p.requires_grad_(False)
 
-    # Last BERT encoder block
+    # Last encoder/transformer block (detected dynamically)
+    layer_idxs = []
+    for name, _ in model.named_parameters():
+        m = re.search(r"(?:encoder|transformer)\.layer\.(\d+)\.", name)
+        if m:
+            layer_idxs.append(int(m.group(1)))
+    last_layer_idx = max(layer_idxs) if layer_idxs else None
+
     for name, p in model.named_parameters():
-        if "bert.encoder.layer.11." in name:
+        if last_layer_idx is not None and re.search(
+            rf"(?:encoder|transformer)\.layer\.{last_layer_idx}\.", name
+        ):
             p.requires_grad_(True)
 
     # Small MLM head only (keep decoder.weight frozen due tied embeddings)

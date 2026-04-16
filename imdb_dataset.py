@@ -18,9 +18,32 @@ class ImdbMLMDataset(Dataset):
         labels = input_ids.clone()
 
         probability_matrix = torch.rand(input_ids.shape)
-        mask = (probability_matrix < self.mlm_prob) & (attention_mask == 1)
-        input_ids[mask] = self.tokenizer.mask_token_id
+        special_tokens_mask = torch.tensor(
+            self.tokenizer.get_special_tokens_mask(
+                input_ids.tolist(), already_has_special_tokens=True
+            ),
+            dtype=torch.bool,
+        )
+        mask = (
+            (probability_matrix < self.mlm_prob)
+            & (attention_mask == 1)
+            & (~special_tokens_mask)
+        )
         labels[~mask] = -100
+
+        # Standard BERT MLM corruption: 80% [MASK], 10% random, 10% unchanged.
+        replace_prob = torch.rand(input_ids.shape)
+        mask_token_positions = mask & (replace_prob < 0.8)
+        random_token_positions = mask & (replace_prob >= 0.8) & (replace_prob < 0.9)
+
+        input_ids[mask_token_positions] = self.tokenizer.mask_token_id
+        random_words = torch.randint(
+            low=0,
+            high=self.tokenizer.vocab_size,
+            size=input_ids.shape,
+            dtype=torch.long,
+        )
+        input_ids[random_token_positions] = random_words[random_token_positions]
 
         return {
             "input_ids": input_ids,
