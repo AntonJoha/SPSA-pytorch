@@ -30,7 +30,7 @@ MAX_STABLE_LOSS = 20.0
 def run_spsa_experiments(
     model_name="distilbert-base-uncased",
     dataset_name="ag_news",
-    dataset_type="MLM",
+    dataset_type=None,
     batch_size=3,
     epochs=50,
     repeats=10,
@@ -47,6 +47,17 @@ def run_spsa_experiments(
         scaling_options = [1e-4, 1e-5, 1e-6]
 
     model_dict = llm.get_model(model_name)
+    if dataset_type is None:
+        model_type = model_dict.get("type")
+        if model_type == "masked-lm":
+            dataset_type = "MLM"
+        elif model_type in ("causal-lm", "qlora-causal-lm"):
+            dataset_type = "CLM"
+        else:
+            raise ValueError(
+                f"Could not infer dataset_type for model '{model_name}' with type '{model_type}'. "
+                "Please provide dataset_type explicitly."
+            )
     dataloader = dataset.get_dataset(dataset_name, dataset_type, model_dict["tokenizer"], batch_size)
 
     os.makedirs(results_dir, exist_ok=True)
