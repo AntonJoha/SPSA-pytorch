@@ -67,7 +67,22 @@ def run_spsa_experiments(
 
                 model = llm.get_model(model_name)["model"].to(device)
                 print("HERE?")
-                model.eval()
+                model.train()
+
+                # Freeze every parameter then unfreeze only the last transformer
+                # block and the MLM prediction head.  This reduces the number of
+                # optimised dimensions from ~110 M (full BERT-base) to ~7 M,
+                # which is ~1000x smaller.  SPSA's per-step signal-to-noise
+                # ratio scales as 1/sqrt(dim), so fewer dimensions means a
+                # dramatically better SNR and practical convergence.
+                for p in model.parameters():
+                    p.requires_grad_(False)
+                for module_name, module in model.named_modules():
+                    # last encoder layer (index 11 for bert-base, 5 for distilbert)
+                    if module_name.endswith((".layer.11", ".layer.5", "cls", ".classifier")):
+                        for p in module.parameters():
+                            p.requires_grad_(True)
+
                 spsa_optimizer = SPSA(model, loss_fn=None, lr=lr, delta=scale, noise_factor=noise_factor)
 
                 to_save = {"lr": lr, "scaling": scale, "loss": []}
