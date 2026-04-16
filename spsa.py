@@ -39,8 +39,8 @@ class SPSA:
         theta = self._flatten()
         dim = theta.numel()
 
-        # SPSA direction
-        delta_vec = torch.randint(0, 2, (dim,), device=theta.device).float()
+        # SPSA direction (Rademacher ±1)
+        delta_vec = torch.randint(0, 2, (dim,), device=theta.device, dtype=theta.dtype) * 2 - 1
 
         theta_plus = theta + self.delta * delta_vec
         theta_minus = theta - self.delta * delta_vec
@@ -74,9 +74,8 @@ class SPSA:
         theta = self._flatten()
         dim = theta.numel()
 
-        # SPSA direction
-        delta_vec = torch.randint(0, 2, (dim,), device=theta.device).float()
-        delta_vec = delta_vec - 1
+        # SPSA direction (Rademacher ±1)
+        delta_vec = torch.randint(0, 2, (dim,), device=theta.device, dtype=theta.dtype) * 2 - 1
 
         theta_plus = theta + self.delta * delta_vec
         theta_minus = theta - self.delta * delta_vec
