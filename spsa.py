@@ -21,7 +21,18 @@ class SPSA:
         self.delta = delta
         self.noise_factor = noise_factor
 
-        self.params = [p for p in model.parameters() if p.requires_grad]
+        # Deduplicate: tied weights (e.g. BERT input/output embeddings) appear
+        # more than once in model.parameters().  Including duplicates inflates
+        # `dim`, makes the gradient estimate inconsistent for those parameters,
+        # and—critically—multiplies the total number of perturbed dimensions,
+        # which drives the SPSA signal-to-noise ratio to near zero for large
+        # models.  Keep only the first occurrence of each unique tensor.
+        seen_ids: set[int] = set()
+        self.params = []
+        for p in model.parameters():
+            if p.requires_grad and id(p) not in seen_ids:
+                seen_ids.add(id(p))
+                self.params.append(p)
 
     def _flatten(self):
         return torch.cat([p.data.view(-1) for p in self.params])
@@ -39,8 +50,10 @@ class SPSA:
         theta = self._flatten()
         dim = theta.numel()
 
-        # SPSA direction
-        delta_vec = torch.randint(0, 2, (dim,), device=theta.device).float()
+        # SPSA direction (Rademacher ±1). Use integer randint then cast to the
+        # parameter dtype; passing a float dtype directly to randint is not
+        # portable across PyTorch versions.
+        delta_vec = (torch.randint(0, 2, (dim,), device=theta.device) * 2 - 1).to(dtype=theta.dtype)
 
         theta_plus = theta + self.delta * delta_vec
         theta_minus = theta - self.delta * delta_vec
@@ -74,9 +87,10 @@ class SPSA:
         theta = self._flatten()
         dim = theta.numel()
 
-        # SPSA direction
-        delta_vec = torch.randint(0, 2, (dim,), device=theta.device).float()
-        delta_vec = delta_vec - 1
+        # SPSA direction (Rademacher ±1). Use integer randint then cast to the
+        # parameter dtype; passing a float dtype directly to randint is not
+        # portable across PyTorch versions.
+        delta_vec = (torch.randint(0, 2, (dim,), device=theta.device) * 2 - 1).to(dtype=theta.dtype)
 
         theta_plus = theta + self.delta * delta_vec
         theta_minus = theta - self.delta * delta_vec
