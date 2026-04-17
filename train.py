@@ -144,6 +144,7 @@ def run_spsa_experiments(
                     "loss": [],
                     "training_succeeded": False,
                 }
+                initial_loss = None
                 for epoch in range(epochs):
                     total_loss = 0.0
                     for batch in dataloader:
@@ -161,11 +162,12 @@ def run_spsa_experiments(
 
                     average_loss = total_loss / len(dataloader)
                     to_save["loss"].append(average_loss)
+                    if initial_loss is None:
+                        initial_loss = average_loss
 
                     if verbose and epoch % 2 == 0:
                         print(f"Repeat {repeat_idx + 1}, Epoch {epoch + 1}, Loss: {average_loss:.4f}")
 
-                    initial_loss = to_save["loss"][0]
                     if (
                         math.isnan(average_loss)
                         or (len(to_save["loss"]) > 1 and average_loss > MAX_LOSS_MULTIPLIER * initial_loss)
