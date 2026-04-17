@@ -170,7 +170,7 @@ def run_spsa_experiments(
 
                     if (
                         math.isnan(average_loss)
-                        or (len(to_save["loss"]) > 1 and average_loss > MAX_LOSS_MULTIPLIER * initial_loss)
+                        or (epoch > 0 and average_loss > MAX_LOSS_MULTIPLIER * initial_loss)
                     ):
                         break
 
