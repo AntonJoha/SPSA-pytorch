@@ -1,5 +1,4 @@
 import torch
-import re
 
 import llm
 from imdb_dataset import get_imdb_mlm_dataloader
@@ -10,28 +9,27 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 def _freeze_for_spsa_bert_mlm(model):
+    """Freeze all parameters except the small MLM prediction head.
+
+    Keeping trainable parameters under ~1 M is the practical threshold where
+    SPSA gradient estimates have a reasonable signal-to-noise ratio.  The MLM
+    head (``cls.predictions.transform.*`` + biases) is ~600 K parameters for
+    bert-base-uncased.
+    """
     for p in model.parameters():
         p.requires_grad_(False)
 
-    # Last encoder/transformer block (detected dynamically)
-    layer_idxs = []
-    for name, _ in model.named_parameters():
-        m = re.search(r"(?:encoder|transformer)\.layer\.(\d+)\.", name)
-        if m:
-            layer_idxs.append(int(m.group(1)))
-    last_layer_idx = max(layer_idxs) if layer_idxs else None
-
-    for name, p in model.named_parameters():
-        if last_layer_idx is not None and re.search(
-            rf"(?:encoder|transformer)\.layer\.{last_layer_idx}\.", name
-        ):
-            p.requires_grad_(True)
-
-    # Small MLM head only (keep decoder.weight frozen due tied embeddings)
+    # Small MLM head only (keep decoder.weight frozen due to tied embeddings).
     for name, p in model.named_parameters():
         if name.startswith("cls.predictions.transform."):
             p.requires_grad_(True)
         if name in {"cls.predictions.bias", "cls.predictions.decoder.bias"}:
+            p.requires_grad_(True)
+
+        # DistilBERT equivalent head (exclude vocab_projector.weight)
+        if name.startswith(("vocab_transform.", "vocab_layer_norm.")):
+            p.requires_grad_(True)
+        if name in {"vocab_projector.bias"}:
             p.requires_grad_(True)
 
 
@@ -41,6 +39,7 @@ def run_simple_bert_imdb(
     lr=3e-4,
     delta=1e-3,
     noise_factor=0.0,
+    num_estimates=4,
     truncated_dataset=300,
     verbose=True,
 ):
@@ -56,7 +55,11 @@ def run_simple_bert_imdb(
     )
 
     _freeze_for_spsa_bert_mlm(model)
-    optimizer = SPSA(model, loss_fn=None, lr=lr, delta=delta, noise_factor=noise_factor)
+    if verbose:
+        trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        total = sum(p.numel() for p in model.parameters())
+        print(f"Trainable params: {trainable:,} / {total:,}")
+    optimizer = SPSA(model, loss_fn=None, lr=lr, delta=delta, noise_factor=noise_factor, num_estimates=num_estimates)
 
     losses = []
     for epoch in range(epochs):
