@@ -25,7 +25,6 @@ class Model(torch.nn.Module):
 
     def forward(self, x):
         x = self.llm(x,output_hidden_states=True).hidden_states[-1][:, 0, :]
-        print("Hidden shape ", x.shape)
         for layer in self.layers:
             x = layer(x)
         return x
