@@ -3,10 +3,14 @@ import torch
 import data
 import llm
 import model
+import spsa
+
+
 
 #################################
 ## CONSTANTS
 #################################
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 CONFIG_BASIC_RUN = {
         "llm": "albert",
@@ -27,20 +31,12 @@ CONFIG_BASIC_RUN = {
 ## Public Functions
 #################################
 
-def train(model, dataloader, optimizer, loss_fn, device):
-    model.train()
+def train(model, dataloader, loss_fn):
     total_loss = 0.0
     for batch in dataloader:
-        inputs = batch["input_ids"].to(device)
-        labels = batch["labels"].to(device)
-
-        optimizer.zero_grad()
-        outputs = model(inputs)
-        loss = loss_fn(outputs, labels)
-        loss.backward()
-        optimizer.step()
-
+        loss = model.step(batch["input_ids"].to(device), batch["labels"].to(device))
         total_loss += loss.item()
+        print(loss)
     
     return total_loss / len(dataloader)
 
@@ -56,8 +52,10 @@ if __name__ == "__main__":
     layers = [torch.nn.Linear(768, 256), torch.nn.Linear(256, 10)]
 
     model = model.Model(llm_model["model"], loss_fn, layers)
-    print(model)
  
 
-    dataset = data.get_dataset("imdb")
+    dataset = data.get_dataset("imdb", llm_model["tokenizer"])
 
+    model= spsa.SPSA(model, lr=0.01, delta=0.01, noise_factor=0.1, loss_fn=loss_fn)
+    
+    train(model, dataset, loss_fn)

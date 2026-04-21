@@ -47,6 +47,8 @@ class SPSA:
             numel = param.numel()
             param.copy_(new_weights[idx:idx+numel].view_as(param))
             idx += numel
+    def get_model(self):
+        return self.model
 
     def step(self, x,y):
 

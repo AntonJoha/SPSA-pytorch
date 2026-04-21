@@ -1,6 +1,6 @@
 import torch
 from datasets import load_dataset
-
+from torch.utils.data import DataLoader, Dataset
 import llm
 
 #################################
@@ -58,7 +58,7 @@ class ClassificationDataset(torch.utils.data.Dataset):
 ## Public Functions
 #################################
 
-def get_dataset(name, tokenizer=None, split="train"):
+def get_dataset(name, tokenizer=None,batch_size=32, split="train"):
     if name not in DATASETS:
         raise ValueError(f"Dataset '{name}' not found. Available datasets: {DATASETS}")
     
@@ -71,7 +71,8 @@ def get_dataset(name, tokenizer=None, split="train"):
     if config["task"] == "classification":
         dataset = ClassificationDataset(encodings, dataset[config["label_field"]])
 
-    return dataset
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    return dataloader
 
 #################################
 ## Test function
