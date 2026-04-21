@@ -1,2 +1,3 @@
 select = ["E", "F", "B", "I", "UP", "SIM"]
 ignore = ["E501"]  # ignore line length (let formatter handle it)
+extend-exclude = ["old_bert_do_not_touch"]
