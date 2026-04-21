@@ -3,7 +3,7 @@
 let
   python = pkgs.python3.withPackages (ps: with ps; [
     pip
-    pytorch
+    torch
     transformers
     datasets
     sentencepiece
