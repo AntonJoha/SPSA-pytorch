@@ -7,6 +7,7 @@ let
     transformers
     datasets
     sentencepiece
+    ruff
   ]);
 in
 pkgs.mkShell {
