@@ -3,9 +3,9 @@ import math
 import os
 import re
 
+import dataset
 import torch
 
-import dataset
 import llm
 from spsa import SPSA
 
@@ -58,7 +58,7 @@ def run_spsa_experiments(
     results_path = os.path.join(results_dir, results_filename)
 
     try:
-        with open(results_path, "r", encoding="utf-8") as f:
+        with open(results_path, encoding="utf-8") as f:
             data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         data = []

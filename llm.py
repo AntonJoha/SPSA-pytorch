@@ -1,6 +1,5 @@
 from transformers import AutoModelForMaskedLM, AutoTokenizer
 
-
 #################################
 ## CONSTANTS
 #################################

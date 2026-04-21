@@ -1,8 +1,6 @@
 import torch
 
 
-
-
 class SPSA:
 
     def __init__(self, model, loss_fn, lr, delta, noise_scale):
@@ -64,7 +62,7 @@ class SPSA:
 
 class Model(torch.nn.Module):
     def __init__(self):
-        super(Model, self).__init__()
+        super().__init__()
         self.fc = torch.nn.Linear(10, 20)
         self.relu = torch.nn.ReLU()
         self.fc2 = torch.nn.Linear(20, 1)

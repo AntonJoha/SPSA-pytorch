@@ -1,4 +1,5 @@
 import torch
+
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 
@@ -91,7 +92,7 @@ class SPSA:
 
 class Model(torch.nn.Module):
     def __init__(self):
-        super(Model, self).__init__()
+        super().__init__()
         self.fc = torch.nn.Linear(10, 20)
         self.relu = torch.nn.ReLU()
         self.fc2 = torch.nn.Linear(20, 1)

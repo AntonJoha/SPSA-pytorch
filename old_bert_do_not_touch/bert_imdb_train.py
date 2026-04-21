@@ -1,9 +1,8 @@
 import torch
+from imdb_dataset import get_imdb_mlm_dataloader
 
 import llm
-from imdb_dataset import get_imdb_mlm_dataloader
 from spsa import SPSA
-
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
