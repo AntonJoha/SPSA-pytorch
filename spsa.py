@@ -57,7 +57,8 @@ class SPSA:
         self.model.eval()
 
         with torch.no_grad():
-            loss_closure  = lambda: self.loss_fn(self.model(x), y)
+            def loss_closure():
+                return self.loss_fn(self.model(x), y)
 
             delta_vec = (torch.randint(0, 2, weights.shape, device=weights.device) * 2 - 1).to(dtype=weights.dtype)
 
@@ -115,10 +116,9 @@ if __name__ == "__main__":
     y = torch.randn(50, 1).to(device)
     
     first = loss_fn(model(x), y).item()
-    for i in range(1000):
+    for _ in range(1000):
         spsa_optimizer.step(x, y).item()
     last = loss_fn(model(x), y).item()
     print("First: ", first, " Last", last, " diff: ", first-last)
     assert last < first, "Loss did not decrease"
-
 
