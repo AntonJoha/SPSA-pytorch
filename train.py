@@ -5,8 +5,6 @@ import llm
 import model
 import spsa
 
-
-
 #################################
 ## CONSTANTS
 #################################
