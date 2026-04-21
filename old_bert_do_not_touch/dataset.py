@@ -1,6 +1,6 @@
 import torch
 from datasets import load_dataset
-from torch.utils.data import TensorDataset, DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset
 
 #################################
 ## CONSTANTS
