@@ -13,11 +13,12 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 #################################
 
 class SPSA:
-    def __init__(self, model, lr, delta, noise_factor, loss_fn):
+    def __init__(self, model, lr, delta, loss_fn, noise_factor=0.0, num_estimates=1):
         self.model = model
         self.lr = lr
         self.delta = delta
         self.noise_factor = noise_factor
+        self.num_estimates = num_estimates
         self.loss_fn = loss_fn
         self._make_param_list()
 
@@ -61,18 +62,22 @@ class SPSA:
             def loss_closure():
                 return self.loss_fn(self.model(x, attention_mask=attention_mask), y)
 
-            delta_vec = (torch.randint(0, 2, weights.shape, device=weights.device) * 2 - 1).to(dtype=weights.dtype)
+            grad_est = torch.zeros_like(weights)
+            try:
+                for _ in range(self.num_estimates):
+                    delta_vec = (torch.randint(0, 2, weights.shape, device=weights.device) * 2 - 1).to(dtype=weights.dtype)
 
-            weights_plus = weights + self.delta * delta_vec
-            weights_minus = weights - self.delta * delta_vec
-            
-            self._set_weights(weights_plus)
-            loss_plus = loss_closure()
-            self._set_weights(weights_minus)
-            loss_minus = loss_closure()
+                    self._set_weights(weights + self.delta * delta_vec)
+                    loss_plus = loss_closure()
+                    self._set_weights(weights - self.delta * delta_vec)
+                    loss_minus = loss_closure()
 
-            diff = loss_plus - loss_minus
-            grad_est = diff / (2 * self.delta) * delta_vec + delta_vec*self.noise_factor
+                    grad_est += (loss_plus - loss_minus) / (2 * self.delta) * delta_vec
+
+                grad_est /= self.num_estimates
+            finally:
+                # Always restore original weights before applying the gradient update.
+                self._set_weights(weights)
         new_weights = weights - self.lr * grad_est
         self._set_weights(new_weights)
         return loss_closure()
@@ -111,7 +116,7 @@ class Model(torch.nn.Module):
 if __name__ == "__main__":
     loss_fn = torch.nn.MSELoss()
     model = Model().to(device)
-    spsa_optimizer = SPSA(model, lr=0.01, delta=0.01, noise_factor=0.1, loss_fn=loss_fn)
+    spsa_optimizer = SPSA(model, lr=0.01, delta=0.01, loss_fn=loss_fn)
 
     x = torch.randn(50, 10).to(device)
     y = torch.randn(50, 1).to(device)

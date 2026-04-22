@@ -22,9 +22,10 @@ class Model(torch.nn.Module):
         self._llm_no_grad()
 
         self.layers = torch.nn.ModuleList()
-        for layer in layers:
+        for i, layer in enumerate(layers):
             self.layers.append(layer)
-            self.layers.append(activation_fn())
+            if i < len(layers) - 1:
+                self.layers.append(activation_fn())
 
     def forward(self, x, attention_mask=None):
         x = self.llm(x, attention_mask=attention_mask, output_hidden_states=True).hidden_states[-3].mean(dim=1)
@@ -57,7 +58,7 @@ if __name__ == "__main__":
     # Example usage
     llm_model = llm.get_model("albert")
     loss_fn = torch.nn.CrossEntropyLoss()
-    layers = [torch.nn.Linear(768, 256), torch.nn.Linear(256, 10)]
+    layers = [torch.nn.Linear(768, 256), torch.nn.Linear(256, 2)]
 
     model = Model(llm_model["model"], loss_fn, layers)
     print(model)
