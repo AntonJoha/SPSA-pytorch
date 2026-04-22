@@ -48,13 +48,13 @@ if __name__ == "__main__":
     # Example usage
     llm_model = llm.get_model("albert")
     loss_fn = torch.nn.CrossEntropyLoss()
-    layers = [torch.nn.Linear(768, 256), torch.nn.Linear(256, 10)]
+    layers = [torch.nn.Linear(768, 256), torch.nn.Linear(256, 2)]
 
     model = model.Model(llm_model["model"], loss_fn, layers)
  
 
     dataset = data.get_dataset("imdb", llm_model["tokenizer"])
 
-    model= spsa.SPSA(model, lr=0.01, delta=0.01, noise_factor=0.1, loss_fn=loss_fn)
+    model= spsa.SPSA(model, lr=0.01, delta=0.01, loss_fn=loss_fn)
     
     train(model, dataset, loss_fn)
