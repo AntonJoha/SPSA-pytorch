@@ -32,7 +32,8 @@ CONFIG_BASIC_RUN = {
 def train(model, dataloader, loss_fn):
     total_loss = 0.0
     for batch in dataloader:
-        loss = model.step(batch["input_ids"].to(device), batch["labels"].to(device))
+        attention_mask = batch["attention_mask"].to(device) if "attention_mask" in batch else None
+        loss = model.step(batch["input_ids"].to(device), batch["labels"].to(device), attention_mask=attention_mask)
         total_loss += loss.item()
         print(loss)
     

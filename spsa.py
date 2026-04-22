@@ -51,7 +51,7 @@ class SPSA:
     def get_model(self):
         return self.model
 
-    def step(self, x,y):
+    def step(self, x, y, attention_mask=None):
 
         weights = self.get_weights()
 
@@ -59,7 +59,7 @@ class SPSA:
 
         with torch.no_grad():
             def loss_closure():
-                return self.loss_fn(self.model(x), y)
+                return self.loss_fn(self.model(x, attention_mask=attention_mask), y)
 
             delta_vec = (torch.randint(0, 2, weights.shape, device=weights.device) * 2 - 1).to(dtype=weights.dtype)
 
