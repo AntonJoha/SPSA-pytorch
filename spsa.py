@@ -72,7 +72,7 @@ class SPSA:
             loss_minus = loss_closure()
 
             diff = loss_plus - loss_minus
-            grad_est = diff / (2 * self.delta) * delta_vec
+            grad_est = diff / (2 * self.delta) * delta_vec + delta_vec*self.noise_factor
         new_weights = weights - self.lr * grad_est
         self._set_weights(new_weights)
         return loss_closure()

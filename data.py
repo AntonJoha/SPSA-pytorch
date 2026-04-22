@@ -70,7 +70,7 @@ def get_dataset(name, tokenizer=None,batch_size=32, split="train"):
     encodings = tokenizer(dataset[config["text_field"]][:], truncation=True, padding=True, return_tensors="pt")
 
     if config["task"] == "classification":
-        dataset = ClassificationDataset(encodings, dataset[config["label_field"]])
+        dataset = ClassificationDataset(encodings, dataset[config["label_field"]][:])
 
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
     return dataloader

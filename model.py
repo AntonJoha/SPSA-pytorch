@@ -27,7 +27,7 @@ class Model(torch.nn.Module):
             self.layers.append(activation_fn())
 
     def forward(self, x, attention_mask=None):
-        x = self.llm(x, attention_mask=attention_mask, output_hidden_states=True).hidden_states[-1][:, 0, :]
+        x = self.llm(x, attention_mask=attention_mask, output_hidden_states=True).hidden_states[-3].mean(dim=1)
         for layer in self.layers:
             x = layer(x)
         return x
