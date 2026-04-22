@@ -22,7 +22,8 @@ class SPSA:
         self._make_param_list()
 
     def _flatten(self, weights):
-        return torch.cat([w.flatten() for w in weights])
+        a = torch.cat([w.flatten() for w in weights])
+        return a
     
     def get_weights(self):
         return self._flatten([param.data for param in self.params])
