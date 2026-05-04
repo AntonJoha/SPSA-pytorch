@@ -24,7 +24,11 @@ class SPSA:
         self.stability_constant = 10
         self.alpha = 0.602
         self.gamma = 0.101
+        self.optimizer = None
 
+    def init_sgd(self, lr):
+        self.optimizer = torch.optim.SGD(self.model.parameters(), lr=lr)
+        
     def _flatten(self, weights):
         a = torch.cat([w.flatten() for w in weights])
         return a
@@ -55,8 +59,18 @@ class SPSA:
     def get_model(self):
         return self.model
 
-    def step(self, x, y, epoch, attention_mask=None):
+    def _optim_step(self,x, y, epoch, attention_mask):
 
+        self.optimizer.zero_grad()
+
+        loss = self.loss_fn(self.model(x,attention_mask=attention_mask), y)
+        loss.backward()
+        self.optimizer.step()
+        return self.loss_fn(self.model(x,attention_mask=attention_mask), y)
+
+    def step(self, x, y, epoch, attention_mask=None):
+        if self.optimizer is not None:
+            return self._optim_step(x,y,epoch,attention_mask)
         weights = self.get_weights()
 
         self.model.eval()

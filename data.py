@@ -67,10 +67,10 @@ def get_dataset(name, tokenizer=None,batch_size=32, split="train"):
     dataset = None
     if config["library"] == "datasets":
         dataset =  load_dataset(config["name"], split=split)
-    encodings = tokenizer(dataset[config["text_field"]][:], truncation=True, padding=True, return_tensors="pt")
+    encodings = tokenizer(dataset[config["text_field"]][:5000], truncation=True, padding=True, return_tensors="pt")
 
     if config["task"] == "classification":
-        dataset = ClassificationDataset(encodings, dataset[config["label_field"]][:])
+        dataset = ClassificationDataset(encodings, dataset[config["label_field"]][:5000])
 
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
     return dataloader
