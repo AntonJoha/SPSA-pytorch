@@ -21,6 +21,9 @@ class SPSA:
         self.num_estimates = num_estimates
         self.loss_fn = loss_fn
         self._make_param_list()
+        self.stability_constant = 10
+        self.alpha = 0.602
+        self.gamma = 0.101
 
     def _flatten(self, weights):
         a = torch.cat([w.flatten() for w in weights])
@@ -52,12 +55,13 @@ class SPSA:
     def get_model(self):
         return self.model
 
-    def step(self, x, y, attention_mask=None):
+    def step(self, x, y, epoch, attention_mask=None):
 
         weights = self.get_weights()
 
         self.model.eval()
-
+        ak = self.lr/ (epoch + self.stability_constant) ** self.alpha
+        ck = self.delta / (epoch**self.gamma)
         with torch.no_grad():
             def loss_closure():
                 return self.loss_fn(self.model(x, attention_mask=attention_mask), y)
@@ -67,18 +71,18 @@ class SPSA:
                 for _ in range(self.num_estimates):
                     delta_vec = (torch.randint(0, 2, weights.shape, device=weights.device) * 2 - 1).to(dtype=weights.dtype)
 
-                    self._set_weights(weights + self.delta * delta_vec)
+                    self._set_weights(weights + ck * delta_vec)
                     loss_plus = loss_closure()
-                    self._set_weights(weights - self.delta * delta_vec)
+                    self._set_weights(weights - ck * delta_vec)
                     loss_minus = loss_closure()
 
-                    grad_est += (loss_plus - loss_minus) / (2 * self.delta) * delta_vec
+                    grad_est += (loss_plus - loss_minus) / (2 * ck) * delta_vec
 
                 grad_est /= self.num_estimates
             finally:
                 # Always restore original weights before applying the gradient update.
                 self._set_weights(weights)
-        new_weights = weights - self.lr * grad_est
+        new_weights = weights - ak * grad_est
         self._set_weights(new_weights)
         return loss_closure()
 
@@ -116,14 +120,17 @@ class Model(torch.nn.Module):
 if __name__ == "__main__":
     loss_fn = torch.nn.MSELoss()
     model = Model().to(device)
-    spsa_optimizer = SPSA(model, lr=0.01, delta=0.01, loss_fn=loss_fn)
+    spsa_optimizer = SPSA(model, lr=0.05, delta=0.01, loss_fn=loss_fn)
 
     x = torch.randn(50, 10).to(device)
     y = torch.randn(50, 1).to(device)
     
     first = loss_fn(model(x), y).item()
-    for _ in range(1000):
-        spsa_optimizer.step(x, y).item()
+    for i in range(2000):
+        spsa_optimizer.step(x, y, i +1).item()
+        #loss = loss_fn(model(x), y).item()
+        #print(f"Epoch {i+1}, Loss: {loss}")
+
     last = loss_fn(model(x), y).item()
     print("First: ", first, " Last", last, " diff: ", first-last)
     assert last < first, "Loss did not decrease"
